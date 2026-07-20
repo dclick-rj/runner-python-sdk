@@ -1,35 +1,35 @@
 # Runner Python SDK
 
-Official Python SDK for reporting Runner automation execution transactions.
+SDK Python oficial para reportar transações de execução de automações do Runner.
 
-Automations executed by Runner receive progress configuration through environment
-variables. This package reads those variables, sends typed transaction updates to
-the local Runner endpoint, and becomes a safe no-op when the script runs outside
-Runner.
+Automações executadas pelo Runner recebem a configuração de progresso por meio
+de variáveis de ambiente. Este pacote lê essas variáveis, envia atualizações de
+transação tipadas para o endpoint local do Runner e se torna um no-op seguro
+quando o script roda fora do Runner.
 
-## Install
+## Instalação
 
-After the first public release is published:
+Depois que a primeira versão pública for publicada:
 
 ```bash
 pip install runner-python-sdk
 ```
 
-With `uv`:
+Com `uv`:
 
 ```bash
 uv add runner-python-sdk
 ```
 
-Until a PyPI release exists, the package can also be installed from the public
-repository:
+Até que exista uma versão no PyPI, o pacote também pode ser instalado a partir
+do repositório público:
 
 ```bash
 pip install "runner-python-sdk @ git+https://github.com/dclick-rj/runner-python-sdk.git"
 uv add "runner-python-sdk @ git+https://github.com/dclick-rj/runner-python-sdk.git"
 ```
 
-## Usage
+## Uso
 
 ```py
 import runner
@@ -68,7 +68,7 @@ transaction.finish(
 )
 ```
 
-For the common case of one main transaction per automation execution:
+Para o caso comum de uma transação principal por execução de automação:
 
 ```py
 import runner
@@ -85,45 +85,45 @@ with runner.main_transaction(
     )
 ```
 
-The context manager reports `running` on entry, `success` on normal exit, and
-`failed` if the block raises an exception.
+O gerenciador de contexto reporta `running` ao entrar, `success` em uma saída
+normal e `failed` se o bloco levantar uma exceção.
 
-Status values are exposed as enums:
+Os valores de status são expostos como enums:
 
 - `runner.TransactionStatus`
 - `runner.FinalTransactionStatus`
 - `runner.TransactionItemStatus`
 
-Transaction items accept only `TransactionItemStatus.PROCESSING`,
-`TransactionItemStatus.SUCCESS`, or `TransactionItemStatus.ERROR` in the SDK
-public API.
+Itens de transação aceitam apenas `TransactionItemStatus.PROCESSING`,
+`TransactionItemStatus.SUCCESS` ou `TransactionItemStatus.ERROR` na API pública
+do SDK.
 
-## Runner environment
+## Ambiente do Runner
 
-Runner injects these variables into automation processes:
+O Runner injeta estas variáveis nos processos de automação:
 
 - `RUNNER_PROGRESS_URL`
-- `RUNNER_PROGRESS_EXECUTION_ID` or `RUNNER_EXECUTION_ID`
+- `RUNNER_PROGRESS_EXECUTION_ID` ou `RUNNER_EXECUTION_ID`
 - `RUNNER_PROGRESS_TOKEN`
 
-The SDK posts transaction updates to:
+O SDK envia atualizações de transação para:
 
 ```text
 POST {RUNNER_PROGRESS_URL}/internal/executions/{RUNNER_EXECUTION_ID}/transactions
 ```
 
-Transaction items are posted to:
+Itens de transação são enviados para:
 
 ```text
 POST {RUNNER_PROGRESS_URL}/internal/executions/{RUNNER_EXECUTION_ID}/transactions/{transaction_id}/items
 ```
 
-The token is sent as `Authorization: Bearer ...`.
+O token é enviado como `Authorization: Bearer ...`.
 
-When any required variable is missing or blank, calls return a no-op result and
-do not perform HTTP requests.
+Quando alguma variável obrigatória está ausente ou em branco, as chamadas
+retornam um resultado no-op e não fazem requisições HTTP.
 
-## Development
+## Desenvolvimento
 
 ```bash
 python -m venv .venv
@@ -131,11 +131,11 @@ python -m venv .venv
 .venv\Scripts\python -m pytest
 ```
 
-Build a distribution:
+Gerar uma distribuição:
 
 ```bash
 python -m build
 ```
 
-Publishing is configured in `.github/workflows/publish.yml` for PyPI Trusted
-Publishing on GitHub release publication.
+A publicação está configurada em `.github/workflows/publish.yml` para PyPI
+Trusted Publishing quando uma release do GitHub for publicada.
