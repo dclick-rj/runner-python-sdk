@@ -23,6 +23,13 @@ from urllib.request import Request, urlopen
 from typing_extensions import Literal
 
 
+class RequestStatus(str, Enum):
+    NOVA = "nova"
+    PENDENTE = "pendente"
+    CONCLUIDA = "concluida"
+    ERRO = "erro"
+    CANCELADA = "cancelada"
+
 class TransactionStatus(str, Enum):
     RUNNING = "running"
     SUCCESS = "success"
@@ -41,6 +48,7 @@ class TransactionItemStatus(str, Enum):
     ERROR = "error"
 
 
+REQUEST_STATUSES = tuple(status.value for status in RequestStatus)
 TRANSACTION_STATUSES = tuple(status.value for status in TransactionStatus)
 FINAL_TRANSACTION_STATUSES = tuple(status.value for status in FinalTransactionStatus)
 TRANSACTION_ITEM_STATUSES = tuple(status.value for status in TransactionItemStatus)
