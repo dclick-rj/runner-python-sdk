@@ -6,6 +6,7 @@ from typing import Any, Mapping, Optional
 import pytest
 
 from runner import (
+    ExecutionCompletionStatus,
     FinalTransactionStatus,
     RunnerProgressClient,
     RunnerProgressConfig,
@@ -26,6 +27,13 @@ class RecordingSender:
         timeout: float,
     ) -> tuple[int, Optional[dict[str, Any]]]:
         self.calls.append((url, payload, headers, timeout))
+
+        if "seq" not in payload:
+            return 202, {
+                "status": "accepted",
+                "completionStatus": payload.get("status"),
+            }
+
         transaction_id = "transaction-1"
         return 202, {
             "status": "accepted",
@@ -73,6 +81,85 @@ def test_config_falls_back_to_legacy_execution_id_env_name() -> None:
     assert config.execution_id == "execution-legacy"
 
 
+def test_config_builds_completion_status_url() -> None:
+    config = RunnerProgressConfig(
+        progress_url="http://127.0.0.1:32123/",
+        execution_id="execution/with space",
+        token="token-1",
+    )
+
+    assert (
+        config.completion_status_url() == "http://127.0.0.1:32123/internal/executions/"
+        "execution%2Fwith%20space/completion-status"
+    )
+
+
+def test_request_completion_status_serializes_payload_without_sequence() -> None:
+    sender = RecordingSender()
+    client = RunnerProgressClient(
+        RunnerProgressConfig(
+            progress_url="http://127.0.0.1:32123",
+            execution_id="execution-1",
+            token="token-1",
+            timeout=2.5,
+        ),
+        sender=sender,
+    )
+
+    result = client.request_completion_status(ExecutionCompletionStatus.ERROR)
+
+    assert result.ok is True
+    assert result.response == {"status": "accepted", "completionStatus": "error"}
+
+    url, payload, headers, timeout = sender.calls[0]
+    assert (
+        url == "http://127.0.0.1:32123/internal/executions/"
+        "execution-1/completion-status"
+    )
+    assert payload == {"status": "error"}
+    assert "seq" not in payload
+    assert headers["Authorization"] == "Bearer token-1"
+    assert timeout == 2.5
+
+
+def test_set_completion_status_accepts_string_alias() -> None:
+    sender = RecordingSender()
+    client = RunnerProgressClient(
+        RunnerProgressConfig(
+            progress_url="http://127.0.0.1:32123",
+            execution_id="execution-1",
+            token="token-1",
+        ),
+        sender=sender,
+    )
+
+    result = client.set_completion_status("stopped")
+
+    assert result.ok is True
+    assert sender.calls[0][1] == {"status": "stopped"}
+
+
+def test_request_completion_status_rejects_invalid_status() -> None:
+    client = RunnerProgressClient(RunnerProgressConfig.from_env({}))
+
+    with pytest.raises(ValueError, match="completion status"):
+        client.request_completion_status("failed")
+
+
+def test_request_completion_status_missing_runner_environment_is_safe_noop() -> None:
+    sender = RecordingSender()
+    client = RunnerProgressClient(
+        RunnerProgressConfig.from_env({}),
+        sender=sender,
+    )
+
+    result = client.request_completion_status(ExecutionCompletionStatus.SUCCESS)
+
+    assert result.ok is True
+    assert result.noop is True
+    assert sender.calls == []
+
+
 def test_create_transaction_serializes_payload_headers_and_request_id() -> None:
     sender = RecordingSender()
     client = RunnerProgressClient(
@@ -102,8 +189,7 @@ def test_create_transaction_serializes_payload_headers_and_request_id() -> None:
 
     url, payload, headers, timeout = sender.calls[0]
     assert (
-        url
-        == "http://127.0.0.1:32123/internal/executions/"
+        url == "http://127.0.0.1:32123/internal/executions/"
         "execution%2Fwith%20space/transactions"
     )
     assert headers["Authorization"] == "Bearer token-1"
@@ -166,8 +252,7 @@ def test_transaction_add_item_posts_to_items_endpoint() -> None:
     assert result.seq == 1
     url, payload, _headers, _timeout = sender.calls[1]
     assert (
-        url
-        == "http://127.0.0.1:32123/internal/executions/"
+        url == "http://127.0.0.1:32123/internal/executions/"
         "execution-1/transactions/transaction-1/items"
     )
     assert payload["items"] == [

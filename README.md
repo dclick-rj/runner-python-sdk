@@ -93,6 +93,23 @@ Os valores de status são expostos como enums:
 - `runner.TransactionStatus`
 - `runner.FinalTransactionStatus`
 - `runner.TransactionItemStatus`
+- `runner.ExecutionCompletionStatus`
+
+
+### Status final da execucao
+
+A automacao tambem pode solicitar qual status o Runner deve aplicar quando a
+execucao terminar:
+
+```py
+import runner
+
+runner.set_completion_status(runner.ExecutionCompletionStatus.ERROR)
+```
+
+Tambem e possivel chamar `runner.request_completion_status("success")`,
+`"error"` ou `"stopped"`. Essa chamada usa o mesmo `RUNNER_PROGRESS_TOKEN` e
+nao consome a sequencia de progresso das transacoes.
 
 Itens de transação aceitam apenas `TransactionItemStatus.PROCESSING`,
 `TransactionItemStatus.SUCCESS` ou `TransactionItemStatus.ERROR` na API pública
@@ -118,6 +135,12 @@ Itens de transação são enviados para:
 POST {RUNNER_PROGRESS_URL}/internal/executions/{RUNNER_EXECUTION_ID}/transactions/{transaction_id}/items
 ```
 
+Solicitacoes de status final da execucao sao enviadas para:
+
+```text
+POST {RUNNER_PROGRESS_URL}/internal/executions/{RUNNER_EXECUTION_ID}/completion-status
+```
+
 O token é enviado como `Authorization: Bearer ...`.
 
 Quando alguma variável obrigatória está ausente ou em branco, as chamadas
@@ -139,3 +162,4 @@ python -m build
 
 A publicação está configurada em `.github/workflows/publish.yml` para PyPI
 Trusted Publishing quando uma release do GitHub for publicada.
+

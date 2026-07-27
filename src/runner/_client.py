@@ -30,6 +30,10 @@ class RequestStatus(str, Enum):
     ERRO = "erro"
     CANCELADA = "cancelada"
 
+class RequestEventStatus(str, Enum):
+    SUCESSO = "erro"
+    ERRO = "erro"
+
 class TransactionStatus(str, Enum):
     RUNNING = "running"
     SUCCESS = "success"
@@ -43,18 +47,29 @@ class FinalTransactionStatus(str, Enum):
     PARTIALLY_COMPLETED = "partially_completed"
 
 
+class ExecutionCompletionStatus(str, Enum):
+    SUCCESS = "success"
+    ERROR = "error"
+    STOPPED = "stopped"
+
+
 class TransactionItemStatus(str, Enum):
     SUCCESS = "success"
     ERROR = "error"
 
 
 REQUEST_STATUSES = tuple(status.value for status in RequestStatus)
+REQUEST_EVENT_STATUSES = tuple(status.value for status in RequestEventStatus)
 TRANSACTION_STATUSES = tuple(status.value for status in TransactionStatus)
 FINAL_TRANSACTION_STATUSES = tuple(status.value for status in FinalTransactionStatus)
+EXECUTION_COMPLETION_STATUSES = tuple(
+    status.value for status in ExecutionCompletionStatus
+)
 TRANSACTION_ITEM_STATUSES = tuple(status.value for status in TransactionItemStatus)
 
 TransactionStatusValue = Union[TransactionStatus, str]
 FinalTransactionStatusValue = Union[FinalTransactionStatus, TransactionStatus, str]
+ExecutionCompletionStatusValue = Union[ExecutionCompletionStatus, str]
 TransactionItemStatusValue = Union[TransactionItemStatus, str]
 JsonObject = dict[str, Any]
 TransactionItemInput = Mapping[str, Any]
@@ -117,6 +132,32 @@ class RunnerProgressConfig:
         encoded_transaction_id = quote(transaction_id, safe="")
         return f"{transaction_url}/{encoded_transaction_id}/items"
 
+    def completion_status_url(self) -> Optional[str]:
+        if not self.progress_url or not self.execution_id:
+            return None
+
+        base_url = self.progress_url.rstrip("/")
+        execution_id = quote(self.execution_id, safe="")
+        return f"{base_url}/internal/executions/{execution_id}/completion-status"
+
+
+@dataclass(frozen=True)
+class CompletionStatusReportResult:
+    sent: bool
+    noop: bool
+    status_code: Optional[int] = None
+    response: Optional[JsonObject] = None
+    error: Optional[str] = None
+
+    @property
+    def ok(self) -> bool:
+        return self.noop or (
+            self.sent
+            and self.error is None
+            and self.status_code is not None
+            and 200 <= self.status_code < 300
+        )
+
 
 @dataclass(frozen=True)
 class TransactionReportResult:
@@ -155,6 +196,27 @@ class RunnerProgressClient:
     @property
     def is_available(self) -> bool:
         return self.config.is_available
+
+    def request_completion_status(
+        self,
+        status: ExecutionCompletionStatusValue,
+    ) -> CompletionStatusReportResult:
+        status_value = _enum_value(
+            status,
+            ExecutionCompletionStatus,
+            "completion status",
+        )
+
+        return self._emit_completion_status_to_url(
+            self.config.completion_status_url(),
+            {"status": status_value},
+        )
+
+    def set_completion_status(
+        self,
+        status: ExecutionCompletionStatusValue,
+    ) -> CompletionStatusReportResult:
+        return self.request_completion_status(status)
 
     def create_transaction(
         self,
@@ -428,6 +490,42 @@ class RunnerProgressClient:
             transaction_id=_extract_transaction_id(response),
         )
 
+    def _emit_completion_status_to_url(
+        self,
+        url: Optional[str],
+        payload: JsonObject,
+    ) -> CompletionStatusReportResult:
+        if not self.config.is_available or url is None or self.config.token is None:
+            return CompletionStatusReportResult(sent=False, noop=True)
+
+        headers = {
+            "Authorization": f"Bearer {self.config.token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "runner-python-sdk/0.1.0",
+        }
+
+        try:
+            status_code, response = self._sender(
+                url,
+                payload,
+                headers,
+                self.config.timeout,
+            )
+        except Exception as exc:  # noqa: BLE001 - strict mode re-raises below.
+            return self._completion_status_failure(str(exc), exc)
+
+        if status_code < 200 or status_code >= 300:
+            message = _error_message_from_response(status_code, response)
+            return self._completion_status_failure(message)
+
+        return CompletionStatusReportResult(
+            sent=True,
+            noop=False,
+            status_code=status_code,
+            response=response,
+        )
+
     def _reserve_seq(self) -> int:
         with self._lock:
             seq = self._next_seq
@@ -439,6 +537,20 @@ class RunnerProgressClient:
             raise RunnerProgressError(message)
 
         return TransactionReportResult(
+            sent=False,
+            noop=False,
+            error=message,
+        )
+
+    def _completion_status_failure(
+        self,
+        message: str,
+        cause: Optional[BaseException] = None,
+    ) -> CompletionStatusReportResult:
+        if self.raise_on_error:
+            raise RunnerProgressError(message) from cause
+
+        return CompletionStatusReportResult(
             sent=False,
             noop=False,
             error=message,
@@ -620,6 +732,18 @@ def get_default_client() -> RunnerProgressClient:
             _default_client = RunnerProgressClient()
 
         return _default_client
+
+
+def request_completion_status(
+    status: ExecutionCompletionStatusValue,
+) -> CompletionStatusReportResult:
+    return get_default_client().request_completion_status(status)
+
+
+def set_completion_status(
+    status: ExecutionCompletionStatusValue,
+) -> CompletionStatusReportResult:
+    return get_default_client().set_completion_status(status)
 
 
 def create_transaction(

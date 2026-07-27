@@ -1,9 +1,12 @@
 """Runner automation transaction reporting SDK."""
 
 from ._client import (
+    EXECUTION_COMPLETION_STATUSES,
     FINAL_TRANSACTION_STATUSES,
     TRANSACTION_ITEM_STATUSES,
     TRANSACTION_STATUSES,
+    CompletionStatusReportResult,
+    ExecutionCompletionStatus,
     FinalTransactionStatus,
     RunnerProgressClient,
     RunnerProgressConfig,
@@ -18,12 +21,17 @@ from ._client import (
     is_available,
     main_transaction,
     report_transaction,
+    request_completion_status,
+    set_completion_status,
 )
 
 __all__ = [
+    "EXECUTION_COMPLETION_STATUSES",
     "FINAL_TRANSACTION_STATUSES",
     "TRANSACTION_STATUSES",
     "TRANSACTION_ITEM_STATUSES",
+    "CompletionStatusReportResult",
+    "ExecutionCompletionStatus",
     "FinalTransactionStatus",
     "RunnerProgressClient",
     "RunnerProgressConfig",
@@ -38,4 +46,6 @@ __all__ = [
     "is_available",
     "main_transaction",
     "report_transaction",
+    "request_completion_status",
+    "set_completion_status",
 ]
