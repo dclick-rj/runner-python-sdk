@@ -220,13 +220,13 @@ def test_create_transaction_can_send_initial_item() -> None:
     client.create_transaction(
         key="invoice_collection",
         item={
-            "status": TransactionItemStatus.PROCESSING,
+            "status": TransactionItemStatus.SUCCESS,
             "value": {"invoiceNumber": "NF-001"},
         },
     )
 
     assert sender.calls[0][1]["item"] == {
-        "status": "processing",
+        "status": "success",
         "value": {"invoiceNumber": "NF-001"},
     }
 
@@ -261,6 +261,81 @@ def test_transaction_add_item_posts_to_items_endpoint() -> None:
             "value": {"invoiceNumber": "NF-001"},
         }
     ]
+
+
+def test_transaction_items_send_the_service_item_code() -> None:
+    sender = RecordingSender()
+    client = RunnerProgressClient(
+        RunnerProgressConfig(
+            progress_url="http://127.0.0.1:32123",
+            execution_id="execution-1",
+            token="token-1",
+        ),
+        sender=sender,
+    )
+    transaction = client.create_transaction(
+        key="certidoes",
+        item={
+            "status": TransactionItemStatus.SUCCESS,
+            "value": {"cnpj": "1"},
+            "service_item_code": "CND_FEDERAL",
+        },
+    )
+
+    transaction.addItem(
+        status=TransactionItemStatus.SUCCESS,
+        value={"cnpj": "2"},
+        service_item_code=" CND_FGTS ",
+    )
+    transaction.addItems(
+        [
+            {
+                "status": TransactionItemStatus.SUCCESS,
+                "value": {"cnpj": "3"},
+                "serviceItemCode": "CND_ESTADUAL",
+            },
+            {
+                "status": TransactionItemStatus.SUCCESS,
+                "value": {"cnpj": "4"},
+                "service_item_code": "  ",
+            },
+        ]
+    )
+
+    assert sender.calls[0][1]["item"] == {
+        "status": "success",
+        "value": {"cnpj": "1"},
+        "serviceItemCode": "CND_FEDERAL",
+    }
+    assert sender.calls[1][1]["items"] == [
+        {
+            "status": "success",
+            "value": {"cnpj": "2"},
+            "serviceItemCode": "CND_FGTS",
+        }
+    ]
+    assert sender.calls[2][1]["items"] == [
+        {
+            "status": "success",
+            "value": {"cnpj": "3"},
+            "serviceItemCode": "CND_ESTADUAL",
+        },
+        {"status": "success", "value": {"cnpj": "4"}},
+    ]
+
+
+def test_item_service_item_code_must_be_a_string() -> None:
+    client = RunnerProgressClient(RunnerProgressConfig(None, None, None))
+
+    with pytest.raises(ValueError, match="service_item_code"):
+        client.report_transaction(
+            key="certidoes",
+            item={
+                "status": TransactionItemStatus.SUCCESS,
+                "value": {},
+                "service_item_code": 42,
+            },
+        )
 
 
 def test_transaction_add_items_sends_public_item_status_values() -> None:
@@ -365,31 +440,6 @@ def test_item_status_rejects_values_outside_item_enum() -> None:
             key="invoice_collection",
             item={"status": "failed", "value": {"invoiceNumber": "NF-001"}},
         )
-
-
-def test_item_status_accepts_processing() -> None:
-    sender = RecordingSender()
-    client = RunnerProgressClient(
-        RunnerProgressConfig(
-            progress_url="http://127.0.0.1:32123",
-            execution_id="execution-1",
-            token="token-1",
-        ),
-        sender=sender,
-    )
-
-    transaction = client.create_transaction(key="invoice_collection")
-    transaction.addItem(
-        status=TransactionItemStatus.PROCESSING,
-        value={"invoiceNumber": "NF-001"},
-    )
-
-    assert sender.calls[1][1]["items"] == [
-        {
-            "status": "processing",
-            "value": {"invoiceNumber": "NF-001"},
-        }
-    ]
 
 
 def test_error_item_requires_message() -> None:

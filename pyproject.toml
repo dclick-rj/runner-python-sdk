@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "runner-python-sdk"
-version = "0.1.0"
+version = "0.2.0"
 description = "Official Python SDK for reporting Runner automation execution transactions."
 readme = "README.md"
 requires-python = ">=3.9"
