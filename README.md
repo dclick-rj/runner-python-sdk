@@ -44,7 +44,7 @@ transaction = runner.create_transaction(
 )
 
 transaction.addItem(
-    status=runner.TransactionItemStatus.PROCESSING,
+    status=runner.TransactionItemStatus.SUCCESS,
     value={"invoiceNumber": "NF-001"},
 )
 
@@ -53,6 +53,7 @@ transaction.addItems(
         {
             "status": runner.TransactionItemStatus.SUCCESS,
             "value": {"invoiceNumber": "NF-002"},
+            "service_item_code": "NFE",
         },
         {
             "status": runner.TransactionItemStatus.ERROR,
@@ -111,9 +112,13 @@ Tambem e possivel chamar `runner.request_completion_status("success")`,
 `"error"` ou `"stopped"`. Essa chamada usa o mesmo `RUNNER_PROGRESS_TOKEN` e
 nao consome a sequencia de progresso das transacoes.
 
-Itens de transação aceitam apenas `TransactionItemStatus.PROCESSING`,
-`TransactionItemStatus.SUCCESS` ou `TransactionItemStatus.ERROR` na API pública
-do SDK.
+Itens de transação aceitam apenas `TransactionItemStatus.SUCCESS` ou
+`TransactionItemStatus.ERROR` na API pública do SDK.
+
+Um item pode informar o item de serviço que atendeu com `service_item_code`,
+tanto em `addItem(..., service_item_code="NFE")` quanto nos dicionários de
+`addItems`. O campo é opcional; com ele, o relatório de uso de serviço atribui o
+item de transação a esse item de serviço em vez de usar a chave da transação.
 
 ## Ambiente do Runner
 

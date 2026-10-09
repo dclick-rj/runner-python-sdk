@@ -278,11 +278,7 @@ class RunnerProgressClient:
         )
 
         if item is not None:
-            payload["item"] = self._build_transaction_item_payload(
-                status=item["status"],
-                message=item.get("message"),
-                value=item["value"],
-            )
+            payload["item"] = self._build_transaction_item_payload_from(item)
 
         if items is not None:
             payload["items"] = self._build_transaction_items_payload(items)
@@ -323,10 +319,18 @@ class RunnerProgressClient:
         status: TransactionItemStatusValue,
         message: Optional[str] = None,
         value: Any,
+        service_item_code: Optional[str] = None,
     ) -> TransactionReportResult:
         return self.add_transaction_items(
             transaction_id=transaction_id,
-            items=[{"status": status, "message": message, "value": value}],
+            items=[
+                {
+                    "status": status,
+                    "message": message,
+                    "value": value,
+                    "service_item_code": service_item_code,
+                }
+            ],
         )
 
     def add_transaction_items(
@@ -416,12 +420,7 @@ class RunnerProgressClient:
         items: Iterable[TransactionItemInput],
     ) -> list[JsonObject]:
         payload_items = [
-            self._build_transaction_item_payload(
-                status=item["status"],
-                message=item.get("message"),
-                value=item["value"],
-            )
-            for item in items
+            self._build_transaction_item_payload_from(item) for item in items
         ]
 
         if not payload_items:
@@ -429,12 +428,28 @@ class RunnerProgressClient:
 
         return payload_items
 
+    def _build_transaction_item_payload_from(
+        self,
+        item: TransactionItemInput,
+    ) -> JsonObject:
+        service_item_code = item.get("service_item_code")
+        if service_item_code is None:
+            service_item_code = item.get("serviceItemCode")
+
+        return self._build_transaction_item_payload(
+            status=item["status"],
+            message=item.get("message"),
+            value=item["value"],
+            service_item_code=service_item_code,
+        )
+
     def _build_transaction_item_payload(
         self,
         *,
         status: TransactionItemStatusValue,
         message: Optional[str],
         value: Any,
+        service_item_code: Optional[str] = None,
     ) -> JsonObject:
         status_value = _enum_value(status, TransactionItemStatus, "item status")
         if status_value == TransactionItemStatus.ERROR.value and (
@@ -442,12 +457,19 @@ class RunnerProgressClient:
         ):
             raise ValueError("item message is required when status is error.")
         _ensure_json_serializable(value, "item value")
+        if service_item_code is not None and not isinstance(service_item_code, str):
+            raise ValueError("item service_item_code must be a string.")
 
         payload: JsonObject = {
             "status": status_value,
             "value": value,
         }
         _put_optional(payload, "message", message)
+        _put_optional(
+            payload,
+            "serviceItemCode",
+            _clean_env_value(service_item_code),
+        )
         return payload
 
     def _emit_to_url(
@@ -464,7 +486,7 @@ class RunnerProgressClient:
             "Authorization": f"Bearer {self.config.token}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "runner-python-sdk/0.1.0",
+            "User-Agent": "runner-python-sdk/0.2.0",
         }
 
         try:
@@ -502,7 +524,7 @@ class RunnerProgressClient:
             "Authorization": f"Bearer {self.config.token}",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "runner-python-sdk/0.1.0",
+            "User-Agent": "runner-python-sdk/0.2.0",
         }
 
         try:
@@ -665,8 +687,14 @@ class Transaction:
         status: TransactionItemStatusValue,
         message: Optional[str] = None,
         value: Any,
+        service_item_code: Optional[str] = None,
     ) -> TransactionReportResult:
-        return self.add_item(status=status, message=message, value=value)
+        return self.add_item(
+            status=status,
+            message=message,
+            value=value,
+            service_item_code=service_item_code,
+        )
 
     def add_item(
         self,
@@ -674,6 +702,7 @@ class Transaction:
         status: TransactionItemStatusValue,
         message: Optional[str] = None,
         value: Any,
+        service_item_code: Optional[str] = None,
     ) -> TransactionReportResult:
         if self.id is None:
             return self._missing_transaction_id_result()
@@ -683,6 +712,7 @@ class Transaction:
             status=status,
             message=message,
             value=value,
+            service_item_code=service_item_code,
         )
         self._apply_result(result)
         return result
